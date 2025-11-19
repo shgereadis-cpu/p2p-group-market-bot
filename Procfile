@@ -1,1 +1,1 @@
-web: python -u group_market_bot.py
+web: gunicorn group_market_bot:main_run
