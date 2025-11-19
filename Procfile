@@ -1,1 +1,1 @@
-web: gunicorn group_market_bot:main_run
+web: gunicorn app:main_run
