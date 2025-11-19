@@ -191,10 +191,4 @@ def main_run():
         webhook_url=os.environ.get("RENDER_EXTERNAL_URL")
     )
     
-    # Uvicorn የሚጠብቀው ይህንን ASGI callable ነው
-    return app_callable
-
-if __name__ == '__main__':
-    # ይህ ክፍል Local testingን የሚደግፍ ነው
-    if not os.environ.get("RENDER_EXTERNAL_URL"):
-        logger.warning("Running locally in development mode (Use run_polling() to test).")
+    # Uvicorn የሚጠ
