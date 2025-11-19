@@ -3,19 +3,17 @@ import sqlite3
 import os
 from telegram import Update, ForceReply
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-from wsgiref.simple_server import make_server # WSGI Serverን ለመፍጠር
+# wsgirefን ማስወገድ (ለ Uvicorn አያስፈልግም)
 
 # 🔐 BOT_TOKENን ከ Render Environment Variables ላይ ያነባል
 BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 
 # የዳታቤዝ ፋይል ስም
 DB_NAME = 'group_market.db'
-# ... (የክፍያ እና ሁኔታ መመዘኛዎች ሳይቀየሩ ይቀራሉ) ...
 VERIFICATION_CODE = "P2P_PAY_2025" 
 USER_STATES = {} 
 STATE_WAITING_FOR_PAYMENT = 1
 STATE_READY_TO_POST = 2
-# ---------------------------------------------
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # --- 1. ዳታቤዝ ማዋቀር ተግባር ---
 def init_db():
-    # ... (የ init_db ተግባር ሳይቀየር ይቀራል)
+    """የግሩፕ ማስታወቂያዎችን ሰንጠረዥ (Ads Table) ይፈጥራል።"""
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
@@ -50,10 +48,9 @@ def init_db():
         logger.error(f"Database initialization failed: {e}")
 
 # --- 2. COMMAND እና MESSAGE HANDLERS እዚህ ይገኛሉ ---
-# ... (start, post_ad, handle_ad_submission, handle_message, browse_ads ተግባራት ሳይቀየሩ ይቀራሉ) ...
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (start ተግባር)
+    """/start ኮማንድ ሲመጣ የእንኳን ደህና መጣችሁ መልዕክት ይልካል።"""
     user = update.effective_user
     welcome_message = (
         f"ሰላም {user.first_name}! 👋\n\n"
@@ -64,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_message)
 
 async def post_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (post_ad ተግባር)
+    """ማስታወቂያ ከመለጠፍ በፊት ክፍያ እንዲፈጸም ይጠይቃል።"""
     user_id = update.effective_user.id
     if USER_STATES.get(user_id) == STATE_READY_TO_POST:
         await update.message.reply_text("✅ ክፍያዎ ተረጋግጧል። እባክዎ የማስታወቂያዎን ዝርዝር ያስገቡ:")
@@ -76,7 +73,7 @@ async def post_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, reply_markup=ForceReply(selective=True))
 
 async def handle_ad_submission(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (handle_ad_submission ተግባር)
+    """የማስታወቂያውን ዝርዝር ተቀብሎ በዳታቤዝ ያስቀምጣል።"""
     text = update.message.text.strip()
     try:
         parts = text.split()
@@ -88,9 +85,13 @@ async def handle_ad_submission(update: Update, context: ContextTypes.DEFAULT_TYP
         
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.execute('''INSERT INTO group_ads (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
-                  (update.effective_user.id, update.effective_user.username, ad_type.upper(),
-                   group_name, int(member_count), start_date, float(price), contact))
+        c.execute('''
+            INSERT INTO group_ads (user_id, username, ad_type, group_name, member_count, start_date, price, contact)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            update.effective_user.id, update.effective_user.username, ad_type.upper(),
+            group_name, int(member_count), start_date, float(price), contact
+        ))
         conn.commit()
         conn.close()
         
@@ -102,7 +103,7 @@ async def handle_ad_submission(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"የመመዝገብ ስህተት ተፈጥሯል: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (handle_message ተግባር)
+    """መልዕክቶችን በሁኔታ (State) መሰረት ያካሂዳል።"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
@@ -123,7 +124,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("የ P2P ማርኬት ቦት ነው። እባክዎ /start ብለው ይጀምሩ።")
 
 async def browse_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (browse_ads ተግባር)
+    """ሁሉንም ንቁ ማስታወቂያዎች አውጥቶ ያሳያል።"""
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
@@ -153,7 +154,7 @@ async def browse_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"ማስታወቂያዎችን የማውጣት ስህተት ተፈጠረ: {e}")
 
 
-# --- 3. የ MAIN_RUN ተግባር (Gunicorn WSGI callable) ---
+# --- 3. የ MAIN_RUN ተግባር (የ ASGI/Uvicorn መዋቅር) ---
 
 async def post_init(application: ApplicationBuilder) -> None:
     """አፕሊኬሽኑ ሲጀምር Webhookን ያዋቅራል።"""
@@ -161,16 +162,16 @@ async def post_init(application: ApplicationBuilder) -> None:
     if url:
         await application.bot.set_webhook(url=url)
 
-# Gunicorn የሚጠብቀው ይህንን ነው (WSGI callable)
-def main_run(environ, start_response):
-    """Gunicorn የሚጠይቃቸውን መለኪያዎች ተቀብሎ የቴሌግራም አፕሊኬሽኑን ያስነሳል።"""
+
+# ይህ ተግባር Uvicorn (ASGI) የሚፈልገውን Application Object ይመልሳል!
+def main_run():
+    """ለ Uvicorn በቀጥታ የሚመለስ የቴሌግራም ቦት Applicationን ይፈጥራል"""
     
     init_db()
     
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN is not set. Check your Render Environment Variables.")
-        start_response('500 Internal Server Error', [('Content-type', 'text/plain')])
-        return [b"Error: BOT_TOKEN is missing."]
+        raise EnvironmentError("BOT_TOKEN is missing!") 
         
     application = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
@@ -181,27 +182,19 @@ def main_run(environ, start_response):
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     
     logger.info("P2P Group Market Bot Application Loaded.")
-    
-    # የቴሌግራም ቦት አፕሊኬሽኑን በ WSGI መካከለኛነት (middleware) ማስኬድ
-    app_wsgi = application.run_webhook(
+
+    # run_webhook የሚባለው ተግባር ለ ASGI የሚያስፈልገውን callable object ይመልሳል
+    app_callable = application.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", "8080")),
         url_path="",
         webhook_url=os.environ.get("RENDER_EXTERNAL_URL")
     )
-
-    # የመጨረሻው የ WSGI መደበኛ መመለሻ (TypeErrorን የሚፈታ)
-    return app_wsgi(environ, start_response)
+    
+    # Uvicorn የሚጠብቀው ይህንን ASGI callable ነው
+    return app_callable
 
 if __name__ == '__main__':
-    # Local Testing (ከ Render ውጪ ለመሞከር)
+    # ይህ ክፍል Local testingን የሚደግፍ ነው
     if not os.environ.get("RENDER_EXTERNAL_URL"):
-        logger.warning("Running locally in development mode.")
-        # Local pollingን ለመጠቀም ይህንን Uncomment ማድረግ ይቻላል።
-        # app = ApplicationBuilder().token(BOT_TOKEN).build()
-        # ... Handlers መጨመር ...
-        # app.run_polling()
-        
-    # Render Gunicornን ስለሚጠቀም, main_run()ን በቀጥታ ይጠራል.
-    else:
-        logger.info("Running under Gunicorn/Render Webhook mode.")
+        logger.warning("Running locally in development mode (Use run_polling() to test).")
