@@ -1,29 +1,22 @@
 import logging
 import sqlite3
 import os
-# from telegram import Update, ForceReply # ይህ በትክክል መሆን አለበት!
 from telegram import Update, ForceReply
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from wsgiref.simple_server import make_server # WSGI Serverን ለመፍጠር
 
 # 🔐 BOT_TOKENን ከ Render Environment Variables ላይ ያነባል
 BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 
 # የዳታቤዝ ፋይል ስም
 DB_NAME = 'group_market.db'
-
-# --- የክፍያ እና ሁኔታ መመዘኛዎች ---
-# ይህ ኮድ ተጠቃሚው ማስታወቂያ ከመለጠፉ በፊት እንዲያስገባው የሚጠበቀው ምሳሌ ኮድ ነው።
+# ... (የክፍያ እና ሁኔታ መመዘኛዎች ሳይቀየሩ ይቀራሉ) ...
 VERIFICATION_CODE = "P2P_PAY_2025" 
-
-# ለጊዜው የተጠቃሚውን ሁኔታ የምንመዘግብበት መዝገብ (Dictionary)
-# Key: user_id, Value: current_state
 USER_STATES = {} 
 STATE_WAITING_FOR_PAYMENT = 1
 STATE_READY_TO_POST = 2
 # ---------------------------------------------
 
-
-# ሎግግንግ ማዘጋጀት
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -32,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # --- 1. ዳታቤዝ ማዋቀር ተግባር ---
 def init_db():
-    """የግሩፕ ማስታወቂያዎችን ሰንጠረዥ (Ads Table) ይፈጥራል።"""
+    # ... (የ init_db ተግባር ሳይቀየር ይቀራል)
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
@@ -41,12 +34,12 @@ def init_db():
                 ad_id INTEGER PRIMARY KEY,
                 user_id INTEGER,
                 username TEXT,
-                ad_type TEXT,  -- 'SELL' or 'BUY'
+                ad_type TEXT,
                 group_name TEXT,
                 member_count INTEGER,
-                start_date TEXT, -- (Oldness)
+                start_date TEXT,
                 price REAL,
-                contact TEXT, -- (የግዢ/ሽያጭ ስምምነት መገናኛ)
+                contact TEXT,
                 status TEXT DEFAULT 'ACTIVE'
             )
         ''')
@@ -56,119 +49,81 @@ def init_db():
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
 
-
 # --- 2. COMMAND እና MESSAGE HANDLERS እዚህ ይገኛሉ ---
+# ... (start, post_ad, handle_ad_submission, handle_message, browse_ads ተግባራት ሳይቀየሩ ይቀራሉ) ...
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/start ኮማንድ ሲመጣ የእንኳን ደህና መጣችሁ መልዕክት ይልካል።"""
+    # ... (start ተግባር)
     user = update.effective_user
     welcome_message = (
         f"ሰላም {user.first_name}! 👋\n\n"
         "ወደ P2P የድሮ ግሩፖች ማርኬት እንኳን ደህና መጡ።\n"
-        "ዋና ኮማንዶች:\n"
         "/post_ad - አዲስ ማስታወቂያ ለመለጠፍ (ክፍያ ይጠይቃል)\n" 
         "/browse_ads - የሚገኙ ማስታወቂያዎችን ለማየት"
     )
     await update.message.reply_text(welcome_message)
 
 async def post_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ማስታወቂያ ከመለጠፍ በፊት ክፍያ እንዲፈጸም ይጠይቃል።"""
-    
+    # ... (post_ad ተግባር)
     user_id = update.effective_user.id
-    
     if USER_STATES.get(user_id) == STATE_READY_TO_POST:
-        message = "✅ ክፍያዎ ተረጋግጧል። እባክዎ የማስታወቂያዎን ዝርዝር ያስገቡ:"
-        await update.message.reply_text(message)
+        await update.message.reply_text("✅ ክፍያዎ ተረጋግጧል። እባክዎ የማስታወቂያዎን ዝርዝር ያስገቡ:")
         return
 
-    message = (
-        "⚠️ ማስታወቂያ ለመለጠፍ ክፍያ መፈጸም ያስፈልጋል።\n"
-        "እባክዎ መጀመሪያ ክፍያውን ለአድሚኑ ይፈጽሙና አድሚኑ የሰጠዎትን ልዩ የክፍያ ማረጋገጫ ኮድ እዚህ ያስገቡ።\n\n"
-        "ክፍያ ከፈጸሙ በኋላ ኮዱን ያስገቡ:"
-    )
+    message = ("⚠️ ማስታወቂያ ለመለጠፍ ክፍያ መፈጸም ያስፈልጋል።...\n"
+               "ክፍያ ከፈጸሙ በኋላ ኮዱን ያስገቡ:")
     USER_STATES[user_id] = STATE_WAITING_FOR_PAYMENT
     await update.message.reply_text(message, reply_markup=ForceReply(selective=True))
 
-
 async def handle_ad_submission(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """የማስታወቂያውን ዝርዝር ተቀብሎ በዳታቤዝ ያስቀምጣል።"""
-    
+    # ... (handle_ad_submission ተግባር)
     text = update.message.text.strip()
-    
     try:
         parts = text.split()
-        
         if len(parts) != 6:
-            await update.message.reply_text(
-                "ማስታወቂያው ትክክለኛ ቅርጽ የለውም። ምሳሌ: `SELL GroupName 15000 2020-01-01 5000 @Contact`"
-            )
+            await update.message.reply_text("ማስታወቂያው ትክክለኛ ቅርጽ የለውም። ምሳሌ: `SELL GroupName 15000 2020-01-01 5000 @Contact`")
             return
-
+        
         ad_type, group_name, member_count, start_date, price, contact = parts
         
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
-        c.execute('''
-            INSERT INTO group_ads (user_id, username, ad_type, group_name, member_count, start_date, price, contact)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            update.effective_user.id,
-            update.effective_user.username,
-            ad_type.upper(),
-            group_name,
-            int(member_count),
-            start_date,
-            float(price),
-            contact
-        ))
+        c.execute('''INSERT INTO group_ads (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', 
+                  (update.effective_user.id, update.effective_user.username, ad_type.upper(),
+                   group_name, int(member_count), start_date, float(price), contact))
         conn.commit()
         conn.close()
         
-        await update.message.reply_text(
-            f"✅ ማስታወቂያዎ ተመዝግቧል:\n"
-            f"🏷️ ግሩፕ ስም: {group_name}\n"
-            f"💰 ዋጋ: {price} ብር"
-        )
+        await update.message.reply_text(f"✅ ማስታወቂያዎ ተመዝግቧል:\n🏷️ ግሩፕ ስም: {group_name}\n💰 ዋጋ: {price} ብር")
         
     except ValueError:
         await update.message.reply_text("የአባላት ብዛት ወይም ዋጋ ቁጥር መሆን አለበት። እባክዎ በትክክል ያስገቡ።")
     except Exception as e:
         await update.message.reply_text(f"የመመዝገብ ስህተት ተፈጥሯል: {e}")
 
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """መልዕክቶችን በሁኔታ (State) መሰረት ያካሂዳል። (የ NameErrorን ችግር የሚፈታ)"""
-    
+    # ... (handle_message ተግባር)
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
-    # --- የክፍያ ማረጋገጫ ክፍል ---
     if USER_STATES.get(user_id) == STATE_WAITING_FOR_PAYMENT:
         if text == VERIFICATION_CODE:
             USER_STATES[user_id] = STATE_READY_TO_POST
-            await update.message.reply_text(
-                "🎉 እንኳን ደስ አለዎት! የክፍያ ኮዱ ትክክል ነው።\n"
-                "አሁን ማስታወቂያዎን በትክክለኛው ቅርፅ ማስገባት ይችላሉ።"
-            )
+            await update.message.reply_text("🎉 እንኳን ደስ አለዎት! የክፍያ ኮዱ ትክክል ነው።\nአሁን ማስታወቂያዎን ማስገባት ይችላሉ።")
         else:
             await update.message.reply_text("❌ ያስገቡት የክፍያ ኮድ ትክክል አይደለም። እባክዎ እንደገና ይሞክሩ።")
-        
         return
     
-    # --- የማስታወቂያ ማስገቢያ ክፍል ---
     elif USER_STATES.get(user_id) == STATE_READY_TO_POST:
         await handle_ad_submission(update, context)
         del USER_STATES[user_id]
         return
         
-    # --- ሌላ ማንኛውም መልዕክት ---
     else:
-        response_message = "የ P2P ማርኬት ቦት ነው። እባክዎ /start ብለው ይጀምሩ።"
-        await update.message.reply_text(response_message)
-
+        await update.message.reply_text("የ P2P ማርኬት ቦት ነው። እባክዎ /start ብለው ይጀምሩ።")
 
 async def browse_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ሁሉንም ንቁ ማስታወቂያዎች አውጥቶ ያሳያል።"""
+    # ... (browse_ads ተግባር)
     try:
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
@@ -198,7 +153,7 @@ async def browse_ads(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"ማስታወቂያዎችን የማውጣት ስህተት ተፈጠረ: {e}")
 
 
-# --- 3. የ MAIN_RUN ተግባር (ለ Render Webhook) ---
+# --- 3. የ MAIN_RUN ተግባር (Gunicorn WSGI callable) ---
 
 async def post_init(application: ApplicationBuilder) -> None:
     """አፕሊኬሽኑ ሲጀምር Webhookን ያዋቅራል።"""
@@ -206,57 +161,47 @@ async def post_init(application: ApplicationBuilder) -> None:
     if url:
         await application.bot.set_webhook(url=url)
 
-
+# Gunicorn የሚጠብቀው ይህንን ነው (WSGI callable)
 def main_run(environ, start_response):
-    """ቦቱን ለ Webhook ሞድ ለማስኬድ ዋናውን Application ይፈጥራል እና Gunicorn እንዲያገኘው ይመልሰዋል!"""
+    """Gunicorn የሚጠይቃቸውን መለኪያዎች ተቀብሎ የቴሌግራም አፕሊኬሽኑን ያስነሳል።"""
     
     init_db()
     
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN is not set. Check your Render Environment Variables.")
-        return
+        start_response('500 Internal Server Error', [('Content-type', 'text/plain')])
+        return [b"Error: BOT_TOKEN is missing."]
         
     application = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    # Handlers መጨመር (handle_message ከዚህ በፊት መገለጹን እናረጋግጣለን)
+    # Handlers መጨመር
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("post_ad", post_ad))
     application.add_handler(CommandHandler("browse_ads", browse_ads))
-    
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    
     
     logger.info("P2P Group Market Bot Application Loaded.")
     
-    # Gunicorn የቴሌግራም አፕሊኬሽኑን እንዲያስነሳው እንመልሰዋለን
-    return application
+    # የቴሌግራም ቦት አፕሊኬሽኑን በ WSGI መካከለኛነት (middleware) ማስኬድ
+    app_wsgi = application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", "8080")),
+        url_path="",
+        webhook_url=os.environ.get("RENDER_EXTERNAL_URL")
+    )
 
+    # የመጨረሻው የ WSGI መደበኛ መመለሻ (TypeErrorን የሚፈታ)
+    return app_wsgi(environ, start_response)
 
 if __name__ == '__main__':
-    # ይህ ክፍል የሚሰራው ከ Render ውጪ ነው (Local Testing)
-    # ለ Render አገልግሎት Gunicorn main_run()ን በቀጥታ ይጠራል
-    
-    # Gunicorn ስለተጠቀምን የ run_webhook() ትዕዛዝ አያስፈልግም
-    # application.run_webhook(...)
-    
-    # ይህንን ለ Local testing ብቻ እንተወዋለን (በ Render ላይ ችግር አይፈጥርም)
-    logger.info("Running locally (if not on Render)...")
-    app = main_run()
-    
-    # የ Webhook URL ከ environment variable ላይ ካለ:
-    render_url = os.environ.get("RENDER_EXTERNAL_URL")
-    port = int(os.environ.get("PORT", "8080"))
-    
-    if not render_url:
-        # ሎካሊ እየሰራን ከሆነ polling መጠቀም ይቻላል
-        logger.warning("RENDER_EXTERNAL_URL is not set. Use application.run_polling() for local test.")
+    # Local Testing (ከ Render ውጪ ለመሞከር)
+    if not os.environ.get("RENDER_EXTERNAL_URL"):
+        logger.warning("Running locally in development mode.")
+        # Local pollingን ለመጠቀም ይህንን Uncomment ማድረግ ይቻላል።
+        # app = ApplicationBuilder().token(BOT_TOKEN).build()
+        # ... Handlers መጨመር ...
         # app.run_polling()
         
+    # Render Gunicornን ስለሚጠቀም, main_run()ን በቀጥታ ይጠራል.
     else:
-        # ለ Render አገልግሎት፣ ይህ ኮድ በ Gunicorn በኩል ነው የሚሰራው
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path="",
-            webhook_url=render_url,
-        )
+        logger.info("Running under Gunicorn/Render Webhook mode.")
