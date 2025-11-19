@@ -1,3 +1,2 @@
 python-telegram-bot
-gunicorn
-gevent # <--- ይህንን ጨምር!
+uvicorn[standard]
