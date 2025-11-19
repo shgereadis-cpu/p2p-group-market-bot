@@ -207,7 +207,7 @@ async def post_init(application: ApplicationBuilder) -> None:
         await application.bot.set_webhook(url=url)
 
 
-def main_run():
+def main_run(environ, start_response)
     """ቦቱን ለ Webhook ሞድ ለማስኬድ ዋናውን Application ይፈጥራል እና Gunicorn እንዲያገኘው ይመልሰዋል!"""
     
     init_db()
