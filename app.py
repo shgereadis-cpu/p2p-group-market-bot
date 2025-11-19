@@ -162,7 +162,7 @@ async def post_init(application: ApplicationBuilder) -> None:
         await application.bot.set_webhook(url=url)
 
 # Gunicorn የሚጠብቀው ይህንን ነው (WSGI callable)
-def main_run(environ):
+def main_run(environ, start_response):
     """Gunicorn የሚጠይቃቸውን መለኪያዎች ተቀብሎ የቴሌግራም አፕሊኬሽኑን ያስነሳል።"""
     
     init_db()
