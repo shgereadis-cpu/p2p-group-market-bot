@@ -1,1 +1,1 @@
-web: python group_market_bot.py
+web: python -u group_market_bot.py
